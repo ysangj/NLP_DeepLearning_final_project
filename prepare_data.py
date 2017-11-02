@@ -70,7 +70,7 @@ def build_dictionary_padding(training_datasets):
         
     word_indices = dict(zip(vocabulary, range(len(vocabulary))))
 
-    return word_indices, len(vocabulary)
+    return word_indices, len(vocabulary), vocabulary
 
 
 def sentences_to_padded_index_sequences(word_indices, datasets):
