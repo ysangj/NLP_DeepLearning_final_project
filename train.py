@@ -68,19 +68,16 @@ def toy_train(src, trg, encoder, decoder, encoder_optimizer, decoder_optimizer, 
 	#context = contexts[len(contexts)-1]
 
 	# decode
+	decoder_input = Variable(torch.LongTensor([[SOS_token]*batch_size]))
 	use_teacher_forcing = True if random.random() < teacher_forcing_ratio else False
 	if use_teacher_forcing:
-		for trg_index in range(0, len(trg)):
-			decoder_input = trg[trg_index].view(1, len(trg[trg_index]))
-			decoder_output, decoder_hidden = decoder(decoder_input, context, batch_size)
-			# print(decoder_output)
-			loss += criterion(decoder_output, trg[trg_index])
-
-	else:
-		decoder_input = Variable(torch.LongTensor([[SOS_token]*batch_size]))
 		for trg_index in range(1, len(trg)):
 			decoder_output, decoder_hidden = decoder(decoder_input, context, batch_size)
-
+			loss += criterion(decoder_output, trg[trg_index])
+			decoder_input = trg[trg_index].view(1, len(trg[trg_index]))
+	else:
+		for trg_index in range(1, len(trg)):
+			decoder_output, decoder_hidden = decoder(decoder_input, context, batch_size)
 			#TODO: switch to sampling. For now, this is greedy
 			topv, topi = decoder_output.data.topk(1)
 
@@ -105,7 +102,6 @@ def toy_train(src, trg, encoder, decoder, encoder_optimizer, decoder_optimizer, 
 
 
 def train(encoder, decoder, encoder_optimizer, decoder_optimizer, criterion):
-##########------------------
 	train_batch = next(iter(train_iter))
 	src = train_batch.src
 	trg = train_batch.trg
@@ -117,19 +113,18 @@ def train(encoder, decoder, encoder_optimizer, decoder_optimizer, criterion):
 	encoder_out, context = encoder(train_batch.src, encoder_hidden)
 
 	# decode
+	decoder_input = Variable(torch.LongTensor([[SOS_token]*batch_size]))
+	decoder_input = decoder_input.cuda() if torch.cuda.is_available() else decoder_input
 	use_teacher_forcing = True if random.random() < teacher_forcing_ratio else False
 	if use_teacher_forcing:
-		for trg_index in range(0, len(trg)):
-			decoder_input = trg[trg_index].view(1, len(trg[trg_index]))
-			decoder_output, decoder_hidden = decoder(decoder_input, context, batch_size)
-			# print(decoder_output)
-			loss += criterion(decoder_output, trg[trg_index])
-
-	else:
-		decoder_input = Variable(torch.LongTensor([[SOS_token]*batch_size]))
 		for trg_index in range(1, len(trg)):
 			decoder_output, decoder_hidden = decoder(decoder_input, context, batch_size)
-
+			loss += criterion(decoder_output, trg[trg_index])
+			decoder_input = trg[trg_index].view(1, len(trg[trg_index]))
+			#decoder_input = decoder_input.cuda() if torch.cuda.is_available() else decoder_input
+	else:
+		for trg_index in range(1, len(trg)):
+			decoder_output, decoder_hidden = decoder(decoder_input, context, batch_size)
 			#TODO: switch to sampling. For now, this is greedy
 			topv, topi = decoder_output.data.topk(1)
 
@@ -155,19 +150,13 @@ def train(encoder, decoder, encoder_optimizer, decoder_optimizer, criterion):
 
 
 
-
-
-
-
-
 # Toy run
 train_batch = next(iter(train_iter))
 src = train_batch.src
 trg = train_batch.trg
-teacher_forcing_ratio = 0.2
+teacher_forcing_ratio = 0.5
 for i in range(0, 25000):
 	print(toy_train(src, trg, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion) )
-
 
 
 
