@@ -198,5 +198,5 @@ def train_loop(num_epochs, encoder, decoder, encoder_optimizer, decoder_optimize
 			print("Epoch:"+ str(epoch)+",Average Loss:"+ str(total_loss/5))
 			total_loss = 0
 
-with open('epoch2000_batch1_minfreq300_lr-4.txt','w') as f:
-    train_loop(2000,encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, train_iter, f)
+# with open('epoch2000_batch1_minfreq300_lr-4.txt','w') as f:
+#     train_loop(2000,encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, train_iter, f)
