@@ -191,7 +191,7 @@ def train_loop(num_epochs, encoder, decoder, encoder_optimizer, decoder_optimize
 	losses = []
 	total_loss = 0
 	for epoch in range(num_epochs):
-		new_loss, ec, dc = seq2seq_train(encoder, decoder, encoder_optimizer, decoder_optimizer, criterion)
+		new_loss = train(encoder, decoder, encoder_optimizer, decoder_optimizer, criterion)
 		total_loss += new_loss
 		losses.append(new_loss)
 		if epoch%5==0:
