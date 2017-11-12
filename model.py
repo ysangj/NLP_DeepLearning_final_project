@@ -42,7 +42,6 @@ class DecoderRNN(nn.Module):
         super(DecoderRNN, self).__init__()
         self.n_layers = n_layers
         self.hidden_size = hidden_size
-
         self.embedding = nn.Embedding(output_size, hidden_size)
         self.gru = nn.GRU(hidden_size*2, hidden_size)
         self.out = nn.Linear(hidden_size, output_size)
