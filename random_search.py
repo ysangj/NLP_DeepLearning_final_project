@@ -92,7 +92,7 @@ for num_epoch in [100, 500, 1000, 2000]:
 gc.collect()
 cnt = 0
 base_score = 10
-while cnt != 1:
+while cnt != 100:
     np.random.seed()
     par = np.random.choice(pars, 1)[0]
     print(str(cnt) +'th trial: \n Parameters: '+ str(par))
