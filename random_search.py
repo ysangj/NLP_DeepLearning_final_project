@@ -12,8 +12,8 @@ import numpy as np
 
 from torchtext import data
 from torchtext import datasets
-from model import EncoderRNN, DecoderRNN
-from train import early_stop_patience, evaluate, train
+from new_model import EncoderRNN, DecoderRNN
+from new_train import early_stop_patience, evaluate, train
 import queue
 
 FR = data.Field(init_token='<sos>', eos_token='<eos>')
@@ -80,7 +80,7 @@ pars = []
 for num_epoch in [100, 500, 1000, 2000]:
     for learning_rate in [1e-4,1e-3,1e-2,0.05,0.1,1]:
         for hidden_size in [64,128,256,512]:
-            for batch_size in [3,6,10,20]:
+            for batch_size in [4,5,10,25,50]:
                 for min_freq in [5,50,100,300,500]:
                     pars.append({
                         'num_epoch': num_epoch,
@@ -99,7 +99,7 @@ while cnt != 1:
     cnt += 1
     EN.build_vocab(training.src, min_freq=par['min_freq'])
     FR.build_vocab(training.trg, min_freq=par['min_freq'])
-    train_iter = data.BucketIterator.splits(
+    train_iter, = data.BucketIterator.splits(
     (training,), batch_sizes=(par['batch_size'],), device=device) #set device as any number other than -1 in cuda envicornment
     score = epoch_training(num_epoch = par['num_epoch'], learning_rate = par['learning_rate'], hidden_size = par['hidden_size'],  early_stop = True, patience = 10,epsilon = 1e-4, train_iter = train_iter, val_iter = val_iter)
     print('\nValidation Loss: '+str(score))
