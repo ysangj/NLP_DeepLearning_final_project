@@ -32,9 +32,9 @@ class EncoderRNN(nn.Module):
     def init_hidden(self, batch_size):
         hidden = Variable(torch.zeros(self.n_layers, batch_size, self.hidden_size))
         ## For GPU run only
-        if torch.cuda.is_available(): hidden = hidden.cuda()
+        if torch.cuda.is_available(): 
+            hidden = Variable(torch.zeros(self.n_layers, batch_size, self.hidden_size).cuda())
         return hidden
-
 
 
 class DecoderRNN(nn.Module):
@@ -52,7 +52,6 @@ class DecoderRNN(nn.Module):
 
         output = self.embedding(input)
         hidden = hidden.view(self.n_layers,batch_size,self.hidden_size)
-
         #for i in range(self.n_layers):
         output = F.relu(output)
         output =  torch.cat((output, hidden), 2)
@@ -64,5 +63,7 @@ class DecoderRNN(nn.Module):
     def init_hidden(self, batch_size):
         hidden = Variable(torch.zeros(self.n_layers, batch_size, self.hidden_size))
         ## For GPU run only
-        if torch.cuda.is_available(): hidden = hidden.cuda()
+        # if torch.cuda.is_available(): hidden = hidden.cuda()
+        if torch.cuda.is_available():
+            hidden = Variable(torch.zeros(self.n_layers, batch_size, self.hidden_size).cuda())
         return hidden
