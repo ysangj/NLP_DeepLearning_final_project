@@ -13,7 +13,7 @@ import numpy as np
 from torchtext import data
 from torchtext import datasets
 from model import EncoderRNN, DecoderRNN
-
+import Queue
 
 FR = data.Field(init_token='<sos>', eos_token='<eos>')
 EN = data.Field(init_token='<sos>', eos_token='<eos>')
@@ -21,7 +21,6 @@ EN = data.Field(init_token='<sos>', eos_token='<eos>')
 SOS_token = 2
 EOS_token = 3
 # batch_size = 5 #switch batch_size to 3 or 5 when using train()
-
 
 train, val, test = datasets.IWSLT.splits(exts=('.en', '.fr'), fields=(EN, FR))
 #'<unk>': 0, '<pad>': 1, '<sos>': 2, '<eos>': 3
@@ -97,9 +96,6 @@ def toy_train(src, trg, encoder, decoder, encoder_optimizer, decoder_optimizer, 
 		print("[French]: ", " ".join([FR.vocab.itos[i] for i in translated]))
 		print("[French Original]: ", " ".join([FR.vocab.itos[i] for i in trg.data[:,0]]))
 	return loss.data[0]/ trglength
-
-
-
 
 
 def train(train_iter, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion):#, teacher_forcing_ratio=1.0):
@@ -179,12 +175,21 @@ def evaluate(val_iter, encoder, decoder, criterion):
 			print("[French]: ", " ".join([FR.vocab.itos[i] for i in translated]))
 			print("[French Original]: ", " ".join([FR.vocab.itos[i] for i in trg.data[:,0]]))
 		total_loss += loss.data[0]
-		#print(b)
-
 
 	return total_loss/len(train_iter)
 
+
+def early_stop_patience(val_loss_q, patience=10):
+	minimum = -1
+	for loss in IterableQueue(val_loss_q):
+		if loss> minimum:
+			minimum = loss
+		else:
+			return False
+	return True
+
+
 	
 print(evaluate(val_iter, encoder, decoder, criterion))
-print(train(train_iter, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion))#, teacher_forcing_ratio=1.0))
-print(evaluate(val_iter, encoder, decoder, criterion))#, teacher_forcing_ratio=0.0))
+print(train(train_iter, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion))
+print(evaluate(val_iter, encoder, decoder, criterion))
