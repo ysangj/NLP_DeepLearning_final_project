@@ -61,7 +61,7 @@ def epoch_training(num_epoch = 100, learning_rate = 1e-4, hidden_size = 100,  ea
             if epoch < patience:
                 losses[epoch] = loss
             else:
-                if loss+episilon >= losses.all():
+                if loss+epsilon >= losses.all():
                     print('Stop at Epoch: '+str(epoch)+", With Validation Loss: "+str(loss))
                     break
                     
@@ -100,7 +100,7 @@ while cnt != 1:
     EN.build_vocab(training.src, min_freq=par['min_freq'])
     FR.build_vocab(training.trg, min_freq=par['min_freq'])
     train_iter = data.BucketIterator.splits(
-    (training), batch_sizes=(par['batch_size']), device=device) #set device as any number other than -1 in cuda envicornment
+    (training,), batch_sizes=(par['batch_size'],), device=device) #set device as any number other than -1 in cuda envicornment
     score = epoch_training(num_epoch = par['num_epoch'], learning_rate = par['learning_rate'], hidden_size = par['hidden_size'],  early_stop = True, patience = 10,epsilon = 1e-4, train_iter = train_iter, val_iter = val_iter)
     print('\nValidation Loss: '+str(score))
     if score < base_score:
