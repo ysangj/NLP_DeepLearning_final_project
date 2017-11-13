@@ -130,7 +130,7 @@ def train(train_iter, encoder, decoder, encoder_optimizer, decoder_optimizer, cr
 		encoder_optimizer.step()
 		trglength = len(trg)
 
-		total_loss += loss.data[0]
+		total_loss += loss.data[0]/trglength
 		if b == 300:
 			break
 		print(b,' batch complete')
@@ -174,7 +174,7 @@ def evaluate(val_iter, encoder, decoder, criterion):
 			print("[ENGLISH]: ", " ".join([EN.vocab.itos[i] for i in src.data[:,0]]))
 			print("[French]: ", " ".join([FR.vocab.itos[i] for i in translated]))
 			print("[French Original]: ", " ".join([FR.vocab.itos[i] for i in trg.data[:,0]]))
-		total_loss += loss.data[0]
+		total_loss += loss.data[0]/trglength
 
 	return total_loss/len(train_iter)
 
