@@ -20,8 +20,9 @@ class EncoderRNN(nn.Module):
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.n_layers = n_layers
-        self.embedding = nn.Embedding(input_size, hidden_size).cuda() if torch.cuda.is_available() else nn.Embedding(input_size, hidden_size) 
-        self.gru = nn.GRU(hidden_size, hidden_size, n_layers).cuda() if torch.cuda.is_available() else nn.GRU(hidden_size, hidden_size, n_layers)
+        self.cuda_available = torch.cuda.is_available()
+        self.embedding = nn.Embedding(input_size, hidden_size).cuda() if self.cuda_available else nn.Embedding(input_size, hidden_size) 
+        self.gru = nn.GRU(hidden_size, hidden_size, n_layers).cuda() if self.cuda_available else nn.GRU(hidden_size, hidden_size, n_layers)
         
     def forward(self, source_sentence, hidden):
         seq_length = len(source_sentence)
@@ -32,7 +33,7 @@ class EncoderRNN(nn.Module):
     def init_hidden(self, batch_size):
         hidden = Variable(torch.zeros(self.n_layers, batch_size, self.hidden_size))
         ## For GPU run only
-        if torch.cuda.is_available(): 
+        if self.cuda_available: 
             hidden = Variable(torch.zeros(self.n_layers, batch_size, self.hidden_size).cuda())
         return hidden
 
@@ -42,10 +43,11 @@ class DecoderRNN(nn.Module):
         super(DecoderRNN, self).__init__()
         self.n_layers = n_layers
         self.hidden_size = hidden_size
-        self.embedding = nn.Embedding(output_size, hidden_size) if torch.cuda.is_available() else nn.Embedding(output_size, hidden_size)
-        self.gru = nn.GRU(hidden_size*2, hidden_size).cuda() if torch.cuda.is_available() else nn.GRU(hidden_size*2, hidden_size)
-        self.out = nn.Linear(hidden_size, output_size).cuda() if torch.cuda.is_available() else nn.Linear(hidden_size, output_size)
-        self.softmax = nn.LogSoftmax().cuda() if torch.cuda.is_available() else nn.LogSoftmax().cuda()
+        self.cuda_available = torch.cuda.is_available()
+        self.embedding = nn.Embedding(output_size, hidden_size) if self.cuda_available else nn.Embedding(output_size, hidden_size)
+        self.gru = nn.GRU(hidden_size*2, hidden_size).cuda() if self.cuda_available else nn.GRU(hidden_size*2, hidden_size)
+        self.out = nn.Linear(hidden_size, output_size).cuda() if self.cuda_available else nn.Linear(hidden_size, output_size)
+        self.softmax = nn.LogSoftmax().cuda() if self.cuda_available else nn.LogSoftmax()
         
     def forward(self, input, hidden, batch_size):
 
@@ -63,6 +65,6 @@ class DecoderRNN(nn.Module):
         hidden = Variable(torch.zeros(self.n_layers, batch_size, self.hidden_size))
         ## For GPU run only
         # if torch.cuda.is_available(): hidden = hidden.cuda()
-        if torch.cuda.is_available():
+        if self.cuda_available:
             hidden = Variable(torch.zeros(self.n_layers, batch_size, self.hidden_size).cuda())
         return hidden
