@@ -121,7 +121,7 @@ def evaluate(val_iter, encoder, decoder, criterion):
 	return total_loss/len(train_iter)
 
 
-def epoch_training(train_iter, val_iter, num_epoch = 100, learning_rate = 1e-4, hidden_size = 100,  early_stop = False, patience = 10,epsilon = 1e-4):
+def epoch_training(train_iter, val_iter, num_epoch = 100, learning_rate = 1e-4, hidden_size = 100,  early_stop = False, patience = 2,epsilon = 1e-4):
 
     # define model
     encoder = EncoderRNN(input_size = len(EN.vocab), hidden_size = hidden_size)
