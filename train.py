@@ -266,7 +266,7 @@ while cnt != 100:
         optimized_parameters = str(final_par)
     if cnt % 100 == 0:
     	gc.collect()
-    print('Final Parameter: '+str(final_par))
+    # print('Final Parameter: '+str(final_par))
     
     
     
@@ -278,7 +278,7 @@ gc.collect()
 # Testing: call our model on test datasets to compute error.(call eveluate on test)
 #		   nltk bleu
 # 
-
+print('Optimized Parameters are ', optimized_parameters)
 torch.save(encoder_model, 'encoder.pt')
 torch.save(decoder_model, 'decoder.pt')
 
