@@ -195,11 +195,11 @@ def test_encoder_decoder(encoder, decoder, test_set, device):
 ###################### Main Procedure ##########################################
 
 pars = []
-for num_epoch in [100, 500, 1000, 2000]:
+for num_epoch in [10, 12, 15, 18]:
     for learning_rate in [1e-4,3e-4,1e-3,3e-3,1e-2]:#,0.05]:
         for hidden_size in [64,128,256]:
             for batch_size in [4,5,10,25,50]:
-                for min_freq in [5,50,100,300,500]:
+                for min_freq in [5,25,50,100,300,500]:
                     pars.append({
                         'num_epoch': num_epoch,
                         'learning_rate': learning_rate,
