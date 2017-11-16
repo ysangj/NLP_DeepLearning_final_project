@@ -257,16 +257,19 @@ while cnt != 100:
     FR.build_vocab(train_set.trg, min_freq=par['min_freq'])
     train_iter, val_iter, = data.BucketIterator.splits((train_set, val_set,), batch_sizes=(par['batch_size'], 1,), device = device)
     loss, encoder, decoder = epoch_training(train_iter, val_iter, num_epoch = par['num_epoch'], learning_rate = par['learning_rate'], hidden_size = par['hidden_size'], early_stop = True, patience = 10, epsilon = 1e-4)
-    print('\nValidation Loss: '+str(loss))
+    print('\nValidation Loss: '+str(score))
     if loss < base_loss:
         base_loss = loss
         final_par = par
+        encoder_model = encoder
+        decoder_model = decoder
+        optimized_parameters = str(final_par)
     if cnt % 100 == 0:
     	gc.collect()
     print('Final Parameter: '+str(final_par))
-    encoder_model = encoder
-    decoder_model = decoder
-    optimized_parameters = str(final_par)
+    
+    
+    
 gc.collect()
 
 
