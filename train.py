@@ -14,7 +14,7 @@ import numpy as np
 from torchtext import data
 from torchtext import datasets
 from model import EncoderRNN, DecoderRNN
-import queue
+import nltk
 
 FR = data.Field(init_token='<sos>', eos_token='<eos>')
 EN = data.Field(init_token='<sos>', eos_token='<eos>')
@@ -26,30 +26,7 @@ EOS_token = 3
 train_set, val_set, test_set = datasets.IWSLT.splits(exts=('.en', '.fr'), fields=(EN, FR))
 #'<unk>': 0, '<pad>': 1, '<sos>': 2, '<eos>': 3
 
-
-#hp
-# learning_rate=0.0001
-# EN.build_vocab(train_set.src, min_freq=50)
-# FR.build_vocab(train_set.trg, min_freq=50)
-# hidden_size = 100
-
 device = 0 if(torch.cuda.is_available()) else -1
-
-# train_iter, val_iter, test_iter = data.BucketIterator.splits(
-#     (train_set, val_set, test_set), batch_sizes=(1, 1, 1), device=device) #set device as any number other than -1 in cuda envicornment
-
-# # define model
-# encoder = EncoderRNN(input_size = len(EN.vocab), hidden_size = hidden_size)
-# decoder = DecoderRNN(hidden_size=hidden_size, output_size = len(FR.vocab))
-
-# # define loss criterion
-# criterion = nn.NLLLoss()
-
-# # define optimizers
-# encoder_optimizer = optim.Adam(encoder.parameters(), lr=learning_rate)
-# decoder_optimizer = optim.Adam(decoder.parameters(), lr=learning_rate)
-
-
 
 def is_eos(topi, batch_size):
 	eos_counter = 0
@@ -60,43 +37,6 @@ def is_eos(topi, batch_size):
 	if eos_counter == batch_size:
 		return True
 	return False
-
-
-def toy_train(src, trg, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, epoch, teacher_forcing_ratio=1.0 ):
-	loss = 0
-	# encode
-	encoder_hidden = encoder.init_hidden(batch_size)
-	encoder_out, context = encoder(train_batch.src, encoder_hidden)
-	#context = contexts[len(contexts)-1]
-
-	# decoder
-	decoder_input = Variable(torch.LongTensor([[SOS_token]*batch_size]))
-
-	if torch.cuda.is_available():
-		decoder_input = Variable(torch.cuda.LongTensor([[SOS_token]*batch_size]))
-
-	translated = []
-	use_teacher_forcing = True if random.random() < teacher_forcing_ratio else False
-	# if use_teacher_forcing:
-	for trg_index in range(1, len(trg)):
-		decoder_output, decoder_hidden = decoder(decoder_input, context, batch_size)
-		topv, topi = decoder_output.data.topk(1)
-		translated.append(topi[0][0])
-		loss += criterion(decoder_output, trg[trg_index])
-		decoder_input = trg[trg_index].view(1, len(trg[trg_index]))
-
-	decoder_optimizer.zero_grad()
-	encoder_optimizer.zero_grad()
-
-	loss.backward()
-	decoder_optimizer.step()
-	encoder_optimizer.step()
-	trglength = len(trg)
-	if epoch % 100 == 0:
-		print("[ENGLISH]: ", " ".join([EN.vocab.itos[i] for i in src.data[:,0]]))
-		print("[French]: ", " ".join([FR.vocab.itos[i] for i in translated]))
-		print("[French Original]: ", " ".join([FR.vocab.itos[i] for i in trg.data[:,0]]))
-	return loss.data[0]/ trglength
 
 
 def train(train_iter, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion):#, teacher_forcing_ratio=1.0):
@@ -181,17 +121,6 @@ def evaluate(val_iter, encoder, decoder, criterion):
 	return total_loss/len(train_iter)
 
 
-# def early_stop_patience(val_loss_q, patience=10):
-# 	minimum = -1
-# 	for loss in IterableQueue(val_loss_q):
-# 		if loss> minimum:
-# 			minimum = loss
-# 		else:
-# 			return False
-# 	return True
-
-
-
 def epoch_training(train_iter, val_iter, num_epoch = 100, learning_rate = 1e-4, hidden_size = 100,  early_stop = False, patience = 10,epsilon = 1e-4):
 
     # define model
@@ -224,6 +153,43 @@ def epoch_training(train_iter, val_iter, num_epoch = 100, learning_rate = 1e-4, 
     return loss, encoder, decoder
 
 
+#feed encoder_model, decoder_model, test_set, and device to test
+def test_encoder_decoder(encoder, decoder, test_set, device):
+	test_iter = data.BucketIterator.splits(test_set, batch_size=1, device = device)
+	avg_bleu = 0
+	for b, batch in enumerate(test_iter):
+		test_batch = batch
+		src = test_batch.src
+		trg = test_batch.trg
+
+		encoder_hidden = encoder.init_hidden(test_iter.batch_size)
+		encoder_out, context = encoder(src, encoder_hidden)
+
+		# decode
+		decoder_input = Variable(torch.LongTensor([[SOS_token]*test_iter.batch_size]))
+
+		if torch.cuda.is_available():
+			decoder_input = Variable(torch.cuda.LongTensor([[SOS_token]*test_iter.batch_size]))
+
+		translated = [SOS_token]
+		for trg_index in range(1, len(trg)):
+			decoder_output, decoder_hidden = decoder(decoder_input, context, test_iter.batch_size)
+
+			topv, topi = decoder_output.data.topk(1)
+			translated.append(topi[0][0])
+			loss += criterion(decoder_output, trg[trg_index])
+			decoder_input  = Variable(topi.view(1, len(topi)) )
+			decoder_input = decoder_input.cuda() if torch.cuda.is_available() else decoder_input
+			
+			if is_eos(topi, test_iter.batch_size):
+				break
+		english = [EN.vocab.itos[i] for i in src.data[:,0]]
+		french_hypothesis = [FR.vocab.itos[i] for i in translated]
+		french_reference = [FR.vocab.itos[i] for i in trg.data[:,0]]
+		avg_bleu += nltk.translate.bleu_score.sentence_bleu([french_reference], french_hypothesis)
+	avg_bleu = avg_bleu/len(test_iter)
+	return avg_bleu
+
 
 
 ###################### Main Procedure ##########################################
@@ -247,7 +213,7 @@ cnt = 0
 base_loss = 10
 encoder_model = None
 decoder_model = None
-optimized_parameters = ''
+optimized_parameters = None
 while cnt != 100:
     np.random.seed()
     par = np.random.choice(pars, 1)[0]
@@ -263,23 +229,17 @@ while cnt != 100:
         final_par = par
         encoder_model = encoder
         decoder_model = decoder
-        optimized_parameters = str(final_par)
+        optimized_parameters = final_par
     if cnt % 100 == 0:
     	gc.collect()
-    # print('Final Parameter: '+str(final_par))
-    
-    
+    cnt += 1
+        
     
 gc.collect()
 
 
-# TODO
-# Save model
-# Testing: call our model on test datasets to compute error.(call eveluate on test)
-#		   nltk bleu
-# 
 print('Optimized Parameters are ', optimized_parameters)
-torch.save(encoder_model, 'encoder.pt')
-torch.save(decoder_model, 'decoder.pt')
+torch.save(encoder_model.state_dict(), 'encoder.pth')
+torch.save(decoder_model.state_dict(), 'decoder.pth')
 
-
+print(test_encoder_decoder(encoder_model, decoder_model, test_set, device))
