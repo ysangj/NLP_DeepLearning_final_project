@@ -112,7 +112,7 @@ def evaluate(val_iter, encoder, decoder, criterion):
 				break
 
 		trglength = len(trg)
-		total_loss += loss.data[0]
+		total_loss += loss.data[0]/trglength
 		if b==len(val_iter)-1:
 			print("[ENGLISH]: ", " ".join([EN.vocab.itos[i] for i in src.data[:,0]]))
 			print("[French]: ", " ".join([FR.vocab.itos[i] for i in translated]))
