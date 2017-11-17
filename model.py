@@ -44,7 +44,7 @@ class DecoderRNN(nn.Module):
         self.n_layers = n_layers
         self.hidden_size = hidden_size
         self.cuda_available = torch.cuda.is_available()
-        self.embedding = nn.Embedding(output_size, hidden_size) if self.cuda_available else nn.Embedding(output_size, hidden_size)
+        self.embedding = nn.Embedding(output_size, hidden_size).cuda() if self.cuda_available else nn.Embedding(output_size, hidden_size)
         self.gru = nn.GRU(hidden_size*2, hidden_size).cuda() if self.cuda_available else nn.GRU(hidden_size*2, hidden_size)
         self.out = nn.Linear(hidden_size, output_size).cuda() if self.cuda_available else nn.Linear(hidden_size, output_size)
         self.softmax = nn.LogSoftmax().cuda() if self.cuda_available else nn.LogSoftmax()
