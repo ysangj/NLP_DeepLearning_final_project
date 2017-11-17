@@ -72,11 +72,12 @@ def train(train_iter, encoder, decoder, encoder_optimizer, decoder_optimizer, cr
 		trglength = len(trg)
 
 		total_loss += (loss.data[0]/trglength)
-		# if b == 300:
-		# 	break
-		# print(b,' batch complete')
-		print(loss.data[0]/trglength)
-
+		if b %300==0:
+			print(b,' batch complete')
+			print(loss.data[0]/trglength)
+		if b==len(train_iter)-1:
+			break
+			
 	return total_loss/len(train_iter)
 
 
