@@ -111,14 +111,14 @@ def evaluate(val_iter, encoder, decoder, criterion):
 				break
 
 		trglength = len(trg)
-
-		if b % 200 == 0:
+		total_loss += loss.data[0]
+		if b==len(val_iter)-1:
 			print("[ENGLISH]: ", " ".join([EN.vocab.itos[i] for i in src.data[:,0]]))
 			print("[French]: ", " ".join([FR.vocab.itos[i] for i in translated]))
 			print("[French Original]: ", " ".join([FR.vocab.itos[i] for i in trg.data[:,0]]))
-		total_loss += loss.data[0]
+			break
 
-	return total_loss/len(train_iter)
+	return total_loss/len(val_iter)
 
 
 def epoch_training(train_iter, val_iter, num_epoch = 100, learning_rate = 1e-4, hidden_size = 100,  early_stop = False, patience = 2,epsilon = 1e-4):
