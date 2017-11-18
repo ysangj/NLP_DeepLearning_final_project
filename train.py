@@ -188,6 +188,8 @@ def test_encoder_decoder(encoder, decoder, test_set, device):
 		french_hypothesis = [FR.vocab.itos[i] for i in translated]
 		french_reference = [FR.vocab.itos[i] for i in trg.data[:,0]]
 		avg_bleu += nltk.translate.bleu_score.sentence_bleu([french_reference], french_hypothesis)
+	if b == len(test_iter)-1:
+		break   
 	avg_bleu = avg_bleu/len(test_iter)
 	return avg_bleu
 
