@@ -188,8 +188,8 @@ def test_encoder_decoder(encoder, decoder, test_set, device):
 		french_hypothesis = [FR.vocab.itos[i] for i in translated]
 		french_reference = [FR.vocab.itos[i] for i in trg.data[:,0]]
 		avg_bleu += nltk.translate.bleu_score.sentence_bleu([french_reference], french_hypothesis)
-	if b == len(test_iter)-1:
-		break   
+		if b==len(test_iter)-1:
+			break 
 	avg_bleu = avg_bleu/len(test_iter)
 	return avg_bleu
 
@@ -217,7 +217,7 @@ base_loss = 10
 encoder_model = None
 decoder_model = None
 optimized_parameters = None
-while cnt != 100:
+while cnt != 5:
     np.random.seed()
     par = np.random.choice(pars, 1)[0]
     print(str(cnt) +'th trial: \n Parameters: '+ str(par))
@@ -225,7 +225,7 @@ while cnt != 100:
     EN.build_vocab(train_set.src, min_freq=par['min_freq'])
     FR.build_vocab(train_set.trg, min_freq=par['min_freq'])
     train_iter, val_iter, = data.BucketIterator.splits((train_set, val_set,), batch_sizes=(par['batch_size'], 1,), device = device)
-    loss, encoder, decoder = epoch_training(train_iter, val_iter, num_epoch = par['num_epoch'], learning_rate = par['learning_rate'], hidden_size = par['hidden_size'], early_stop = True, patience = 10, epsilon = 1e-4)
+    loss, encoder, decoder = epoch_training(train_iter, val_iter, num_epoch = par['num_epoch'], learning_rate = par['learning_rate'], hidden_size = par['hidden_size'], early_stop = True, patience = 2, epsilon = 1e-4)
     print('\nValidation Loss: '+str(loss))
     if loss < base_loss:
         base_loss = loss
@@ -233,7 +233,7 @@ while cnt != 100:
         encoder_model = encoder
         decoder_model = decoder
         optimized_parameters = final_par
-    if cnt % 100 == 0:
+    if cnt % 5 == 0:
     	gc.collect()
     cnt += 1
         
