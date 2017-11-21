@@ -174,8 +174,11 @@ def epoch_training(train_iter, val_iter, num_epoch = 100, learning_rate = 1e-4, 
 
 
 #feed encoder_model, decoder_model, test_set, and device to test
-def test_encoder_decoder(encoder, decoder, test_set, device):
-	test_iter = data.BucketIterator.splits(test_set, batch_size=1, device = device)
+def test_encoder_decoder(encoder, decoder, device):
+
+	train_iter, val_iter, test_iter = data.BucketIterator.splits(
+    (train_set, val_set, test_set), batch_sizes=(3, 1, 1), device=device) 
+
 	avg_bleu = 0
 	for b, batch in enumerate(test_iter):
 		test_batch = batch
@@ -197,7 +200,6 @@ def test_encoder_decoder(encoder, decoder, test_set, device):
 
 			topv, topi = decoder_output.data.topk(1)
 			translated.append(topi[0][0])
-			loss += criterion(decoder_output, trg[trg_index])
 			decoder_input  = Variable(topi.view(1, len(topi)) )
 			decoder_input = decoder_input.cuda() if torch.cuda.is_available() else decoder_input
 			
@@ -207,21 +209,21 @@ def test_encoder_decoder(encoder, decoder, test_set, device):
 		french_hypothesis = [FR.vocab.itos[i] for i in translated]
 		french_reference = [FR.vocab.itos[i] for i in trg.data[:,0]]
 		avg_bleu += nltk.translate.bleu_score.sentence_bleu([french_reference], french_hypothesis)
+
 		if b==len(test_iter)-1:
 			break 
 	avg_bleu = avg_bleu/len(test_iter)
 	return avg_bleu
 
 
-
 ###################### Main Procedure ##########################################
 
 pars = []
-for num_epoch in [10, 12, 15, 18]:
+for num_epoch in [15, 18, 21, 24]:
     for learning_rate in [1e-4,3e-4,1e-3,3e-3,1e-2]:#,0.05]:
         for hidden_size in [64,128,256]:
-            for batch_size in [4,5,10,25,50]:
-                for min_freq in [5,25,50,100,300,500]:
+            for batch_size in [4,5]:
+                for min_freq in [5,15,25]:
                     pars.append({
                         'num_epoch': num_epoch,
                         'learning_rate': learning_rate,
@@ -264,4 +266,4 @@ print('Optimized Parameters are ', optimized_parameters)
 torch.save(encoder_model.state_dict(), 'encoder.pth')
 torch.save(decoder_model.state_dict(), 'decoder.pth')
 
-print(test_encoder_decoder(encoder_model, decoder_model, test_set, device))
+print(test_encoder_decoder(encoder_model, decoder_model, device))
