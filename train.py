@@ -58,12 +58,25 @@ def train(train_iter, encoder, decoder, encoder_optimizer, decoder_optimizer, cr
 		if torch.cuda.is_available():
 			decoder_input = Variable(torch.cuda.LongTensor([[SOS_token]*train_iter.batch_size]))
 
-		for trg_index in range(1, len(trg)):
-			decoder_output, decoder_hidden = decoder(decoder_input, context, train_iter.batch_size)
-			topv, topi = decoder_output.data.topk(1)
-			loss += criterion(decoder_output, trg[trg_index])
-			decoder_input = trg[trg_index].view(1, len(trg[trg_index]))
 
+		use_teacher_forcing = True if random.random() < 0.5 else False
+
+		if use_teacher_forcing:
+			for trg_index in range(1, len(trg)):
+				decoder_output, decoder_hidden = decoder(decoder_input, context, train_iter.batch_size)
+				topv, topi = decoder_output.data.topk(1)
+				loss += criterion(decoder_output, trg[trg_index])
+				decoder_input = trg[trg_index].view(1, len(trg[trg_index]))
+		else:
+			for trg_index in range(1, len(trg)):
+				decoder_output, decoder_hidden = decoder(decoder_input, context, train_iter.batch_size)
+				topv, topi = decoder_output.data.topk(1)
+				loss += criterion(decoder_output, trg[trg_index])
+				decoder_input  = Variable(topi.view(1, len(topi)) )
+				decoder_input = decoder_input.cuda() if torch.cuda.is_available() else decoder_input
+			
+				if is_eos(topi, train_iter.batch_size):
+					break
 		decoder_optimizer.zero_grad()
 		encoder_optimizer.zero_grad()
 		loss.backward()
@@ -113,10 +126,16 @@ def evaluate(val_iter, encoder, decoder, criterion):
 
 		trglength = len(trg)
 		total_loss += loss.data[0]/trglength
-		if b==len(val_iter)-1:
+		
+		if b% 50 == 0:
 			print("[ENGLISH]: ", " ".join([EN.vocab.itos[i] for i in src.data[:,0]]))
 			print("[French]: ", " ".join([FR.vocab.itos[i] for i in translated]))
 			print("[French Original]: ", " ".join([FR.vocab.itos[i] for i in trg.data[:,0]]))
+
+		if b==len(val_iter)-1:
+			# print("[ENGLISH]: ", " ".join([EN.vocab.itos[i] for i in src.data[:,0]]))
+			# print("[French]: ", " ".join([FR.vocab.itos[i] for i in translated]))
+			# print("[French Original]: ", " ".join([FR.vocab.itos[i] for i in trg.data[:,0]]))
 			break
 
 	return total_loss/len(val_iter)
