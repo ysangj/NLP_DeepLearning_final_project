@@ -16,6 +16,10 @@ from torchtext import datasets
 from model import EncoderRNN, DecoderRNN
 import nltk
 
+import logging
+logging.basicConfig(filename='nov22_1.log',level=logging.WARNING)
+logging.warning('Packages Imported')
+
 FR = data.Field(init_token='<sos>', eos_token='<eos>')
 EN = data.Field(init_token='<sos>', eos_token='<eos>')
 
@@ -27,6 +31,7 @@ train_set, val_set, test_set = datasets.IWSLT.splits(exts=('.en', '.fr'), fields
 #'<unk>': 0, '<pad>': 1, '<sos>': 2, '<eos>': 3
 
 device = 0 if(torch.cuda.is_available()) else -1
+logging.warning('Data Loaded')
 
 def is_eos(topi, batch_size):
 	eos_counter = 0
@@ -59,17 +64,18 @@ def train(train_iter, encoder, decoder, encoder_optimizer, decoder_optimizer, cr
 			decoder_input = Variable(torch.cuda.LongTensor([[SOS_token]*train_iter.batch_size]))
 
 
-		use_teacher_forcing = True if random.random() < 0.5 else False
+		use_teacher_forcing = True if random.random() < 1.0 else False
+		decoder_hidden = context
 
 		if use_teacher_forcing:
 			for trg_index in range(1, len(trg)):
-				decoder_output, decoder_hidden = decoder(decoder_input, context, train_iter.batch_size)
+				decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden, context, train_iter.batch_size)
 				topv, topi = decoder_output.data.topk(1)
 				loss += criterion(decoder_output, trg[trg_index])
 				decoder_input = trg[trg_index].view(1, len(trg[trg_index]))
 		else:
 			for trg_index in range(1, len(trg)):
-				decoder_output, decoder_hidden = decoder(decoder_input, context, train_iter.batch_size)
+				decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden, context, train_iter.batch_size)
 				topv, topi = decoder_output.data.topk(1)
 				loss += criterion(decoder_output, trg[trg_index])
 				decoder_input  = Variable(topi.view(1, len(topi)) )
@@ -85,7 +91,7 @@ def train(train_iter, encoder, decoder, encoder_optimizer, decoder_optimizer, cr
 		trglength = len(trg)
 
 		total_loss += (loss.data[0]/trglength)
-		if b %300==0:
+		if b %500==0:
 			print(b,' batch complete')
 			print(loss.data[0]/trglength)
 		if b==len(train_iter)-1:
@@ -107,13 +113,13 @@ def evaluate(val_iter, encoder, decoder, criterion):
 
 		# decode
 		decoder_input = Variable(torch.LongTensor([[SOS_token]*val_iter.batch_size]))
-
+		decoder_hidden = context
 		if torch.cuda.is_available():
 			decoder_input = Variable(torch.cuda.LongTensor([[SOS_token]*val_iter.batch_size]))
 
 		translated = []
 		for trg_index in range(1, len(trg)):
-			decoder_output, decoder_hidden = decoder(decoder_input, context, val_iter.batch_size)
+			decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden, context, val_iter.batch_size)
 
 			topv, topi = decoder_output.data.topk(1)
 			translated.append(topi[0][0])
@@ -127,7 +133,7 @@ def evaluate(val_iter, encoder, decoder, criterion):
 		trglength = len(trg)
 		total_loss += loss.data[0]/trglength
 		
-		if b% 50 == 0:
+		if b% 500 == 0:
 			print("[ENGLISH]: ", " ".join([EN.vocab.itos[i] for i in src.data[:,0]]))
 			print("[French]: ", " ".join([FR.vocab.itos[i] for i in translated]))
 			print("[French Original]: ", " ".join([FR.vocab.itos[i] for i in trg.data[:,0]]))
@@ -157,19 +163,27 @@ def epoch_training(train_iter, val_iter, num_epoch = 100, learning_rate = 1e-4, 
     losses = np.ndarray(patience)
     for epoch in range(num_epoch):
         tl = train(train_iter, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion)
-        print(tl, '**********')
+        # print(tl, '**********')
         loss = evaluate(val_iter, encoder, decoder, criterion)
+        logging.warning('************Epoch: '+str(epoch)+' Training Loss: '+str(tl)+' Validation Loss: '+str(loss)+'*********')
         if early_stop:
             if epoch < patience:
                 losses[epoch] = loss
             else:
-                if loss+epsilon >= losses.all():
-                    print('Stop at Epoch: '+str(epoch)+", With Validation Loss: "+str(loss))
+                count_loss = 0
+                for i in range(patience):
+                    if loss-losses[i]>=epoch:
+                        count_loss += 1 
+                if count_loss == patience:
                     break
                 else:
                     losses[epoch%patience] = loss
 
     print('Stop at Epoch: '+str(epoch)+", With Validation Loss: "+str(loss))
+    logging.warning('Stop at Epoch: '+str(epoch)+", With Validation Loss: "+str(loss))
+	# string = 'Stop at Epoch: '+str(epoch)+', With Validation Loss: '+str(loss)
+
+	# logging.warning('Stop at Epoch: '+str(epoch)+ ', With Validation Loss: '+str(loss))
     return loss, encoder, decoder
 
 
@@ -190,13 +204,13 @@ def test_encoder_decoder(encoder, decoder, device):
 
 		# decode
 		decoder_input = Variable(torch.LongTensor([[SOS_token]*test_iter.batch_size]))
-
+		decoder_hidden = context
 		if torch.cuda.is_available():
 			decoder_input = Variable(torch.cuda.LongTensor([[SOS_token]*test_iter.batch_size]))
 
 		translated = [SOS_token]
 		for trg_index in range(1, len(trg)):
-			decoder_output, decoder_hidden = decoder(decoder_input, context, test_iter.batch_size)
+			decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden, context, test_iter.batch_size)
 
 			topv, topi = decoder_output.data.topk(1)
 			translated.append(topi[0][0])
@@ -223,7 +237,7 @@ for num_epoch in [15, 18, 21, 24]:
     for learning_rate in [1e-4,3e-4,1e-3,3e-3,1e-2]:#,0.05]:
         for hidden_size in [64,128,256]:
             for batch_size in [4,5]:
-                for min_freq in [5,15,25]:
+                for min_freq in [5,15,25,50,250,500]:
                     pars.append({
                         'num_epoch': num_epoch,
                         'learning_rate': learning_rate,
@@ -241,13 +255,15 @@ optimized_parameters = None
 while cnt != 5:
     np.random.seed()
     par = np.random.choice(pars, 1)[0]
-    print(str(cnt) +'th trial: \n Parameters: '+ str(par))
+    # print(str(cnt) +'th trial: \n Parameters: '+ str(par))
+    logging.warning(str(cnt) +'th trial: \n Parameters: '+ str(par))
     cnt += 1
     EN.build_vocab(train_set.src, min_freq=par['min_freq'])
     FR.build_vocab(train_set.trg, min_freq=par['min_freq'])
     train_iter, val_iter, = data.BucketIterator.splits((train_set, val_set,), batch_sizes=(par['batch_size'], 1,), device = device)
-    loss, encoder, decoder = epoch_training(train_iter, val_iter, num_epoch = par['num_epoch'], learning_rate = par['learning_rate'], hidden_size = par['hidden_size'], early_stop = True, patience = 2, epsilon = 1e-4)
-    print('\nValidation Loss: '+str(loss))
+    loss, encoder, decoder = epoch_training(train_iter, val_iter, num_epoch = par['num_epoch'], learning_rate = par['learning_rate'], hidden_size = par['hidden_size'], early_stop = True, patience = 4, epsilon = 1e-4)
+    logging.warning('\nValidation Loss: '+str(loss))
+
     if loss < base_loss:
         base_loss = loss
         final_par = par
@@ -262,8 +278,16 @@ while cnt != 5:
 gc.collect()
 
 
-print('Optimized Parameters are ', optimized_parameters)
-torch.save(encoder_model.state_dict(), 'encoder.pth')
-torch.save(decoder_model.state_dict(), 'decoder.pth')
+logging.warning('Optimized Parameters are '+str(optimized_parameters))
+torch.save(encoder_model.state_dict(), 'encoder_nov23_1.pth')
+torch.save(decoder_model.state_dict(), 'decoder_nov23_1.pth')
 
-print(test_encoder_decoder(encoder_model, decoder_model, device))
+test_result = test_encoder_decoder(encoder_model, decoder_model, device)
+logging.warning(str(test_result))
+
+
+# print('Optimized Parameters are ', optimized_parameters)
+# torch.save(encoder_model.state_dict(), 'encoder.pth')
+# torch.save(decoder_model.state_dict(), 'decoder.pth')
+
+# print(test_encoder_decoder(encoder_model, decoder_model, device))
