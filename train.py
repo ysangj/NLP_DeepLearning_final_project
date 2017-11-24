@@ -172,7 +172,7 @@ def epoch_training(train_iter, val_iter, num_epoch = 100, learning_rate = 1e-4, 
             else:
                 count_loss = 0
                 for i in range(patience):
-                    if loss-losses[i]>=epoch:
+                    if loss-losses[i]>=epsilon:
                         count_loss += 1 
                 if count_loss == patience:
                     break
