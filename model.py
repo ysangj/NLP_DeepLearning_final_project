@@ -42,10 +42,10 @@ class DecoderRNN(nn.Module):
         super(DecoderRNN, self).__init__()
         self.n_layers = n_layers
         self.hidden_size = hidden_size
-        self.embedding = nn.Embedding(output_size, hidden_size) if torch.cuda.is_available() else nn.Embedding(output_size, hidden_size)
+        self.embedding = nn.Embedding(output_size, hidden_size).cuda() if torch.cuda.is_available() else nn.Embedding(output_size, hidden_size)
         self.gru = nn.GRU(hidden_size*2, hidden_size).cuda() if torch.cuda.is_available() else nn.GRU(hidden_size*2, hidden_size)
         self.out = nn.Linear(hidden_size, output_size).cuda() if torch.cuda.is_available() else nn.Linear(hidden_size, output_size)
-        self.softmax = nn.LogSoftmax().cuda() if torch.cuda.is_available() else nn.LogSoftmax().cuda()
+        self.softmax = nn.LogSoftmax().cuda() if torch.cuda.is_available() else nn.LogSoftmax()
         
     def forward(self, input, hidden, context, batch_size): #hidden should be renamed as context
 
