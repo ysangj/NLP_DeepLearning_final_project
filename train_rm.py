@@ -97,8 +97,8 @@ def rm_train(train_iter, encoder, recurrent_memory, encoder_optimizer, recurrent
 		loss.backward()
 
 		#Gradient Clipping
-		torch.nn.utils.clip_grad_norm(encoder.parameters(), 1.0)
-		torch.nn.utils.clip_grad_norm(recurrent_memory.parameters(), 1.0)
+		torch.nn.utils.clip_grad_norm(encoder.parameters(), 10.0)
+		torch.nn.utils.clip_grad_norm(recurrent_memory.parameters(), 10.0)
 
 		recurrent_memory_optimizer.step()
 		encoder_optimizer.step()
@@ -288,6 +288,9 @@ def test(encoder, recurrent_memory, device, test_set, hidden_size):
 
 	return french_reference, french_hypo, [avg_bleu1, avg_bleu2, avg_bleu3, avg_bleu4, avg_bleu5, avg_bleu7]
 
+#################################################### MAIN PROCEDURE ########################################################################## 
+
+
 
 ############################################################### Train/Validate Model and do Model Selection via Random Search ###################################
 pars = []
@@ -320,7 +323,7 @@ while cnt != 15:
 	EN.build_vocab(train_set.src, min_freq=par['min_freq'])
 	FR.build_vocab(train_set.trg, min_freq=par['min_freq'])
 	train_iter, val_iter, = data.BucketIterator.splits((train_set, val_set,), batch_sizes=(4, 1,), device = device)
-	loss, encoder, recurrent_memory = epoch_training(train_iter, val_iter, num_epoch = par['num_epoch'], learning_rate = par['learning_rate'], hidden_size = 100, early_stop = True, patience = 4, epsilon = 1e-4, memory_size = par['memory_size'])
+	loss, encoder, recurrent_memory = epoch_training(train_iter, val_iter, num_epoch = par['num_epoch'], learning_rate = par['learning_rate'], hidden_size = par['hidden_size'], early_stop = True, patience = 4, epsilon = 1e-4, memory_size = par['memory_size'])
 	logging.warning('\nValidation Loss: '+str(loss))
 
 	if loss < base_loss:
@@ -337,9 +340,6 @@ logging.warning('Optimized Parameters are ' + str(optimized_parameters))
 
 pickle.dump(encoder_model,open('encoder_nov30.p','wb'))
 pickle.dump(recurrent_memory_model,open('recurrent_memory_nov30.p','wb'))
-
-#################################################### MAIN PROCEDURE ########################################################################## 
-
 
 
 ############################################### Test Model by computing BLEU score ###########################
