@@ -272,7 +272,7 @@ while cnt != 5:
         optimized_parameters = final_par
     if cnt % 5 == 0:
     	gc.collect()
-    cnt += 1
+
         
     
 gc.collect()
