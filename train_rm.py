@@ -79,7 +79,7 @@ def rm_train(train_iter, encoder, recurrent_memory, encoder_optimizer, recurrent
 				memory_queue.append(Variable(torch.LongTensor([[PAD_token]*train_iter.batch_size])))
 		memory_queue.append(recurrent_memory_input)
 		
-		cell = Variable(torch.zeros(1, train_iter.batch_size, hidden_size))
+		cell = Variable(torch.zeros(1, train_iter.batch_size, hidden_size)).cuda() if torch.cuda.is_available() else Variable(torch.zeros(1, train_iter.batch_size, hidden_size))
 
 		# Just use Teacher Forcing
 		for trg_index in range(1, len(trg)):
@@ -140,7 +140,7 @@ def evaluate(val_iter, encoder, recurrent_memory, hidden_size, memory_size, crit
 		memory_queue.append(recurrent_memory_input)
 
 		translated = [SOS_token]
-		cell = Variable(torch.zeros(1, val_iter.batch_size, hidden_size))
+		cell = Variable(torch.zeros(1, val_iter.batch_size, hidden_size)).cuda() if torch.cuda.is_available() else Variable(torch.zeros(1, val_iter.batch_size, hidden_size))
 
 		for trg_index in range(1, len(trg)):
 			
@@ -242,7 +242,7 @@ def test(encoder, recurrent_memory, device, test_set, hidden_size):
 		
 		memory_queue.append(recurrent_memory_input)
 		translated = [SOS_token]
-		cell = Variable(torch.zeros(1, test_iter.batch_size, hidden_size))
+		cell = Variable(torch.zeros(1, test_iter.batch_size, hidden_size)).cuda() if torch.cuda.is_available() else Variable(torch.zeros(1, test_iter.batch_size, hidden_size))
 
 		for trg_index in range(1, len(trg)):
 			memory_tensor = queue2tensor(memory_queue)
