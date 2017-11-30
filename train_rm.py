@@ -286,7 +286,7 @@ def test(encoder, recurrent_memory, device, test_set, hidden_size):
 	logging.warning(avg_bleu5)
 	logging.warning(avg_bleu7)
 
-	return french_reference, french_hypo, [avg_bleu1, avg_bleu2, avg_bleu3, avg_bleu4, avg_bleu5, avg_bleu7]
+	return french_reference, french_hypo, english_test, [avg_bleu1, avg_bleu2, avg_bleu3, avg_bleu4, avg_bleu5, avg_bleu7]
 
 #################################################### MAIN PROCEDURE ########################################################################## 
 
@@ -343,7 +343,7 @@ pickle.dump(recurrent_memory_model,open('recurrent_memory_nov30.p','wb'))
 
 
 ############################################### Test Model by computing BLEU score ###########################
-french_reference, french_hypo, nltk_bleus = test(encoder_model, recurrent_memory_model, device, test_set, optimized_parameters['hidden_size'] )
+french_reference, french_hypo, english_test, nltk_bleus = test(encoder_model, recurrent_memory_model, device, test_set, optimized_parameters['hidden_size'] )
 
 pickle.dump(french_reference,open('french_reference_nov30.p','wb'))
 pickle.dump(french_hypo,open('french_hypo_nov30.p','wb'))
@@ -354,6 +354,14 @@ multi_bleu_path, _ = urllib.request.urlretrieve(
         "https://raw.githubusercontent.com/moses-smt/mosesdecoder/"
         "master/scripts/generic/multi-bleu.perl")
 os.chmod(multi_bleu_path, 0o755)
+
+english = ''
+for j in range(len(english_test)):
+    english += ' '.join(english_test[j][i] for i in range(len(english_test[j])))
+    english = english + '\n'
+text_file = open("english_test_nov30.txt", "w")
+text_file.write(english)
+text_file.close()
 
 reference = ''
 for j in range(len(french_reference)):
