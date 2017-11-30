@@ -89,10 +89,10 @@ class RecurrentMemory(nn.Module):
         self.c_embedding = nn.Embedding(output_size, hidden_size).cuda() if torch.cuda.is_available() else nn.Embedding(output_size, hidden_size)
 
 
-        self.mb_attn_linear = nn.Linear(memory_size, memory_size)
+        self.mb_attn_linear = nn.Linear(memory_size, memory_size).cuda() if torch.cuda.is_available() else nn.Linear(memory_size, memory_size)
 
-        self.lstm_cell = nn.LSTMCell(hidden_size*2, hidden_size)
-        self.gru_cell = nn.GRUCell(hidden_size, hidden_size)
+        self.lstm_cell = nn.LSTMCell(hidden_size*2, hidden_size).cuda() if torch.cuda.is_available() else nn.LSTMCell(hidden_size*2, hidden_size)
+        self.gru_cell = nn.GRUCell(hidden_size, hidden_size).cuda() if torch.cuda.is_available() else nn.GRUCell(hidden_size, hidden_size)
         
         
         ############################################################################## 
@@ -104,18 +104,17 @@ class RecurrentMemory(nn.Module):
         context = context.view(self.n_layers,batch_size,self.hidden_size)
         output = F.relu(output)
         output =  torch.cat((output, context), 2)
-
-        # lstm_output, (lstm_hidden,cell) = self.lstm(output, (rmn_hidden, cell))
-
         output = output.squeeze(0)
         rmn_hidden = rmn_hidden.squeeze(0)
+
         cell = cell.squeeze(0)
+
+
         lstm_hidden, cell =  self.lstm_cell(output, (rmn_hidden, cell) )
         lstm_hidden = lstm_hidden.unsqueeze(0)
         cell = cell.unsqueeze(0)
 
         ############## Memory Block ####################################################
-
         input_memory = self.m_embedding(memory_tensor) #M 
         output_memory = self.c_embedding(memory_tensor) #C
 
@@ -133,15 +132,11 @@ class RecurrentMemory(nn.Module):
 
         mb_output = self.gru_cell(memory_context, lstm_hidden)
         mb_output = mb_output.unsqueeze(0)
-
         ####################################################################################
     
         mb_output = torch.cat((mb_output, context),2)
         output = self.softmax(self.out(mb_output[0]))
-        # output = self.softmax(self.out(output[0]))
 
-
-        # return output, hidden
         return output, lstm_hidden, cell
 
 
