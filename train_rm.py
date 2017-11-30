@@ -97,8 +97,8 @@ def rm_train(train_iter, encoder, recurrent_memory, encoder_optimizer, recurrent
 		loss.backward()
 
 		#Gradient Clipping
-		torch.nn.utils.clip_grad_norm(encoder.parameters(), 10.0)
-		torch.nn.utils.clip_grad_norm(recurrent_memory.parameters(), 10.0)
+		torch.nn.utils.clip_grad_norm(encoder.parameters(), 1.0)
+		torch.nn.utils.clip_grad_norm(recurrent_memory.parameters(), 1.0)
 
 		recurrent_memory_optimizer.step()
 		encoder_optimizer.step()
