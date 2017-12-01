@@ -22,9 +22,7 @@ from collections import deque
 from six.moves import urllib
 import os
 import subprocess
-import logging
-logging.basicConfig(filename='nov30_3.log',level=logging.WARNING)
-logging.warning('Packages Imported')
+
 FR = data.Field(init_token='<sos>', eos_token='<eos>')
 EN = data.Field(init_token='<sos>', eos_token='<eos>')
 
@@ -213,7 +211,7 @@ def epoch_training(train_iter, val_iter, num_epoch = 100, learning_rate = 1e-4, 
 '''
 Compute NLTK Bleu score and return translation hypothesis and reference
 '''
-def test(encoder, recurrent_memory, device, test_set, hidden_size):
+def test(encoder, recurrent_memory, device, test_set, hidden_size, memory_size):
 	test_iter, = data.BucketIterator.splits((test_set,), batch_sizes=(1,), device=device)
 	avg_bleu1 = 0
 	avg_bleu2 = 0
@@ -222,7 +220,7 @@ def test(encoder, recurrent_memory, device, test_set, hidden_size):
 	avg_bleu5 = 0
 	avg_bleu7 = 0
 	english_test = []
-	french_test = []
+	french_reference = []
 	french_hypo = []
 	for b, batch in enumerate(test_iter):
 		test_batch = batch
@@ -248,7 +246,10 @@ def test(encoder, recurrent_memory, device, test_set, hidden_size):
 
 		for trg_index in range(1, len(trg)):
 			memory_tensor = queue2tensor(memory_queue)
+
 			recurrent_memory_output, recurrent_memory_hidden, cell = recurrent_memory(recurrent_memory_input, recurrent_memory_hidden, cell, context, test_iter.batch_size, memory_tensor, memory_size)
+			
+
 			topv, topi = recurrent_memory_output.data.topk(1)
 			translated.append(topi[0][0])
 			recurrent_memory_input = Variable(topi.view(1, len(topi)) )
@@ -261,7 +262,7 @@ def test(encoder, recurrent_memory, device, test_set, hidden_size):
 		french_hypothesis = [FR.vocab.itos[i] for i in translated]
 		french_reference = [FR.vocab.itos[i] for i in trg.data[:,0]]
 		english_test.append(english)
-		french_test.append(french_reference)
+		french_reference.append(french_reference)
 		french_hypo.append(french_hypothesis)
 
 		avg_bleu1 += nltk.translate.bleu_score.sentence_bleu([french_reference], french_hypothesis, weights=(0.25, 0.25, 0.25, 0.25), smoothing_function=nltk.translate.bleu_score.SmoothingFunction().method1)
@@ -288,7 +289,7 @@ def test(encoder, recurrent_memory, device, test_set, hidden_size):
 	logging.warning(avg_bleu5)
 	logging.warning(avg_bleu7)
 
-	return french_test, french_hypo, english_test, [avg_bleu1, avg_bleu2, avg_bleu3, avg_bleu4, avg_bleu5, avg_bleu7]
+	return french_reference, french_hypo, english_test, [avg_bleu1, avg_bleu2, avg_bleu3, avg_bleu4, avg_bleu5, avg_bleu7]
 
 #################################################### MAIN PROCEDURE ########################################################################## 
 
@@ -345,7 +346,7 @@ pickle.dump(recurrent_memory_model,open('recurrent_memory_nov30.p','wb'))
 
 
 ############################################### Test Model by computing BLEU score ###########################
-french_reference, french_hypo, english_test, nltk_bleus = test(encoder_model, recurrent_memory_model, device, test_set, optimized_parameters['hidden_size'] )
+french_reference, french_hypo, english_test, nltk_bleus = test(encoder_model, recurrent_memory_model, device, test_set, optimized_parameters['hidden_size'], optimized_parameters['memory_size'] )
 
 pickle.dump(french_reference,open('french_reference_nov30.p','wb'))
 pickle.dump(french_hypo,open('french_hypo_nov30.p','wb'))
