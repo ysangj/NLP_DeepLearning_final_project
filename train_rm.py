@@ -22,6 +22,9 @@ from collections import deque
 from six.moves import urllib
 import os
 import subprocess
+import logging
+logging.basicConfig(filename='nov30_5_3.log',level=logging.WARNING)
+logging.warning('Packages Imported')
 
 FR = data.Field(init_token='<sos>', eos_token='<eos>')
 EN = data.Field(init_token='<sos>', eos_token='<eos>')
@@ -220,7 +223,7 @@ def test(encoder, recurrent_memory, device, test_set, hidden_size, memory_size):
 	avg_bleu5 = 0
 	avg_bleu7 = 0
 	english_test = []
-	french_reference = []
+	french_test = []
 	french_hypo = []
 	for b, batch in enumerate(test_iter):
 		test_batch = batch
@@ -262,7 +265,7 @@ def test(encoder, recurrent_memory, device, test_set, hidden_size, memory_size):
 		french_hypothesis = [FR.vocab.itos[i] for i in translated]
 		french_reference = [FR.vocab.itos[i] for i in trg.data[:,0]]
 		english_test.append(english)
-		french_reference.append(french_reference)
+		french_test.append(french_reference)
 		french_hypo.append(french_hypothesis)
 
 		avg_bleu1 += nltk.translate.bleu_score.sentence_bleu([french_reference], french_hypothesis, weights=(0.25, 0.25, 0.25, 0.25), smoothing_function=nltk.translate.bleu_score.SmoothingFunction().method1)
@@ -289,7 +292,7 @@ def test(encoder, recurrent_memory, device, test_set, hidden_size, memory_size):
 	logging.warning(avg_bleu5)
 	logging.warning(avg_bleu7)
 
-	return french_reference, french_hypo, english_test, [avg_bleu1, avg_bleu2, avg_bleu3, avg_bleu4, avg_bleu5, avg_bleu7]
+	return french_test, french_hypo, english_test, [avg_bleu1, avg_bleu2, avg_bleu3, avg_bleu4, avg_bleu5, avg_bleu7]
 
 #################################################### MAIN PROCEDURE ########################################################################## 
 
