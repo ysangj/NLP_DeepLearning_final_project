@@ -22,7 +22,9 @@ from collections import deque
 from six.moves import urllib
 import os
 import subprocess
-
+import logging
+logging.basicConfig(filename='nov30_3.log',level=logging.WARNING)
+logging.warning('Packages Imported')
 FR = data.Field(init_token='<sos>', eos_token='<eos>')
 EN = data.Field(init_token='<sos>', eos_token='<eos>')
 
