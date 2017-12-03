@@ -328,7 +328,7 @@ while cnt != 15:
 	logging.warning(str(cnt) +'th trial: \n Parameters: '+ str(par))
 	EN.build_vocab(train_set.src, min_freq=par['min_freq'])
 	FR.build_vocab(train_set.trg, min_freq=par['min_freq'])
-	train_iter, val_iter, = data.BucketIterator.splits((train_set, val_set,), batch_sizes=(4, 1,), device = device)
+	train_iter, val_iter, = data.BucketIterator.splits((train_set, val_set,), batch_sizes=(par['batch_size'], 1,), device = device)
 	loss, encoder, recurrent_memory = epoch_training(train_iter, val_iter, num_epoch = par['num_epoch'], learning_rate = par['learning_rate'], hidden_size = par['hidden_size'], early_stop = True, patience = 4, epsilon = 1e-4, memory_size = par['memory_size'])
 	logging.warning('\nValidation Loss: '+str(loss))
 
