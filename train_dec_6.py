@@ -25,7 +25,7 @@ multi_bleu_path, _ = urllib.request.urlretrieve(
         "master/scripts/generic/multi-bleu.perl")
 os.chmod(multi_bleu_path, 0o755)
 
-logging.basicConfig(filename='epoch_5.log',level=logging.WARNING)
+logging.basicConfig(filename='dec6_1.log',level=logging.WARNING)
 logging.warning('Packages Imported')
 
 FR = data.Field(init_token='<sos>', eos_token='<eos>')
@@ -49,6 +49,27 @@ def is_eos(topi, batch_size):
 		return True
 	return False
 
+def compute_bleu(hypothesis_file_name, test_filename_name):
+	lowercase = 1
+	bleu_score = 0
+	with open(hypothesis_file_name, "r") as read_pred:
+	    bleu_cmd = [multi_bleu_path]
+	    if lowercase:
+	        bleu_cmd += ["-lc"]
+	    bleu_cmd += [test_filename_name]
+	    try:
+	        bleu_out = subprocess.check_output(bleu_cmd, stdin=read_pred, stderr=subprocess.STDOUT)
+	        bleu_out = bleu_out.decode("utf-8")
+	        bleu_score = re.search(r"BLEU = (.+?),", bleu_out).group(1)
+	        bleu_score = float(bleu_score)
+	        logging.warning(str(bleu_score))
+	        logging.warning(bleu_out)
+	    except subprocess.CalledProcessError as error:
+	        if error.output is not None:
+	            logging.warning("multi-bleu.perl script returned non-zero exit code")
+	            logging.warning(error.output)
+	        bleu_score = np.float32(0.0)
+	return bleu_score
 
 def train(train_iter, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion):#, teacher_forcing_ratio=1.0):
 	
@@ -87,10 +108,10 @@ def train(train_iter, encoder, decoder, encoder_optimizer, decoder_optimizer, cr
 		trglength = len(trg)
 
 		total_loss += (loss.data[0]/trglength)
-		if b %500==0:
+		if b %500==499:
 			print(b,' batch complete')
 			print(loss.data[0]/trglength)
-			#break
+			break
 		if b==len(train_iter)-1:
 			break
 			
@@ -99,6 +120,8 @@ def train(train_iter, encoder, decoder, encoder_optimizer, decoder_optimizer, cr
 
 def evaluate(val_iter, encoder, decoder, criterion):
 	total_loss = 0
+	french_test = []
+	french_hypo = []
 	for b, batch in enumerate(val_iter):
 		loss = 0
 		val_batch = batch
@@ -122,12 +145,17 @@ def evaluate(val_iter, encoder, decoder, criterion):
 			loss += criterion(decoder_output, trg[trg_index])
 			decoder_input  = Variable(topi.view(1, len(topi)) )
 			decoder_input = decoder_input.cuda() if torch.cuda.is_available() else decoder_input			
-			
 			if topi[0][0] == EOS_token:
 				break
 
 		trglength = len(trg)
 		total_loss += loss.data[0]/trglength
+
+		hyp = [FR.vocab.itos[i] for i in translated]
+		ref = [FR.vocab.itos[i] for i in trg.data[:,0]]
+		french_test.append(ref)
+		french_hypo.append(hyp)
+		
 		
 		if b% 500 == 0:
 			print("[ENGLISH]: ", " ".join([EN.vocab.itos[i] for i in src.data[:,0]]))
@@ -139,7 +167,25 @@ def evaluate(val_iter, encoder, decoder, criterion):
 			print("[French]: ", " ".join([FR.vocab.itos[i] for i in translated]))
 			print("[French Original]: ", " ".join([FR.vocab.itos[i] for i in trg.data[:,0]]))
 			break
-	return total_loss/len(val_iter)
+	sentence1 = ''
+
+	for j in range(len(french_test)):
+	    sentence1 += ' '.join(french_test[j][i] for i in range(len(french_test[j])))
+	    sentence1 = sentence1+'\n'
+	text_file = open("french_val_test.txt", "w")
+	text_file.write(sentence1)
+	text_file.close()
+
+	sentence2 = ''
+	for j in range(len(french_hypo)):
+	    sentence2 += ' '.join(french_hypo[j][i] for i in range(len(french_hypo[j])))
+	    sentence2 = sentence2+'\n'
+	text_file = open("french_val_hyp.txt", "w")
+	text_file.write(sentence2)
+	text_file.close()
+
+	val_bleu = compute_bleu("french_val_hyp.txt", "french_val_test.txt")
+	return total_loss/len(val_iter), val_bleu
 
 
 def epoch_training(train_iter, val_iter, num_epoch = 100, learning_rate = 1e-4, hidden_size = 100,  early_stop = False, patience = 2,epsilon = 1e-4):
@@ -161,13 +207,16 @@ def epoch_training(train_iter, val_iter, num_epoch = 100, learning_rate = 1e-4, 
     res_encoder = None
     res_decoder = None
     res_epoch = 0
+    base_bleu = 0
+
 
     for epoch in range(num_epoch):
         tl = train(train_iter, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion)
-        loss = evaluate(val_iter, encoder, decoder, criterion)
+        loss, val_bleu = evaluate(val_iter, encoder, decoder, criterion)
         logging.warning('************Epoch: ' + str(epoch) + ' Training Loss: '+str(tl)+' Validation Loss: '+str(loss)+'*********')
         #save the model with the lowest validation loss
-        if loss < res_loss:
+        if base_bleu < val_bleu:
+        	base_bleu = val_bleu
         	res_loss = loss
         	res_encoder = encoder
         	res_decoder = decoder
@@ -176,15 +225,13 @@ def epoch_training(train_iter, val_iter, num_epoch = 100, learning_rate = 1e-4, 
 
     print('Stop at Epoch: '+str(res_epoch)+", With Validation Loss: "+str(res_loss))
     logging.warning('Stop at Epoch: '+str(res_epoch)+", With Validation Loss: "+str(res_loss))
-    return res_loss, res_encoder, res_decoder, loss
-
+    return res_loss, res_encoder, res_decoder, base_bleu
 
 #feed encoder_model, decoder_model, test_set, and device to test
 def test_encoder_decoder(encoder, decoder, device,test_set):
 
 	test_iter, = data.BucketIterator.splits(
     (test_set,), batch_sizes=(1,), device=device) 
-
 	avg_bleu1 = 0
 	avg_bleu2 = 0
 	avg_bleu3 = 0
@@ -218,8 +265,12 @@ def test_encoder_decoder(encoder, decoder, device,test_set):
 			decoder_input  = Variable(topi.view(1, len(topi)) )
 			decoder_input = decoder_input.cuda() if torch.cuda.is_available() else decoder_input
 			
-			if is_eos(topi, test_iter.batch_size):
+			# if is_eos(topi, test_iter.batch_size):
+			# 	break
+
+			if topi[0][0] == EOS_token:
 				break
+
 		english = [EN.vocab.itos[i] for i in src.data[:,0]]
 		french_hypothesis = [FR.vocab.itos[i] for i in translated]
 		french_reference = [FR.vocab.itos[i] for i in trg.data[:,0]]
@@ -261,8 +312,6 @@ for num_epoch in [5]:
                         'min_freq':min_freq
                     })
 
-
-
 gc.collect()
 cnt = 0
 base_loss = 30
@@ -278,8 +327,11 @@ while cnt < 1:
     EN.build_vocab(train_set.src, min_freq=par['min_freq'])
     FR.build_vocab(train_set.trg, min_freq=par['min_freq'])
     train_iter, val_iter = data.BucketIterator.splits((train_set, val_set), sort_key = lambda ex: data.interleave_keys(len(ex.src), len(ex.trg)), batch_sizes=(par['batch_size'], 1), device = device)
-    loss, encoder, decoder = epoch_training(train_iter, val_iter, num_epoch = par['num_epoch'], learning_rate = par['learning_rate'], hidden_size = par['hidden_size'], early_stop = False, patience = 2, epsilon = 1e-4)
-    logging.warning('\nValidation Loss: '+str(loss))
+    loss, encoder, decoder, val_bleu = epoch_training(train_iter, val_iter, num_epoch = par['num_epoch'], learning_rate = par['learning_rate'], hidden_size = par['hidden_size'], early_stop = False, patience = 2, epsilon = 1e-4)
+    #res_loss, res_encoder, res_decoder, loss, base_bleu
+
+
+    logging.warning('\nValidation Bleu: '+str(val_bleu))
 
     if loss < base_loss:
         base_loss = loss
@@ -292,21 +344,20 @@ while cnt < 1:
         
 logging.warning('Optimized Parameters are '+str(optimized_parameters))
 
-
-pickle.dump(encoder_model,open('encoder_epoch_5.p','wb'))
-pickle.dump(decoder_model,open('decoder_epoch_5.p','wb'))
+pickle.dump(encoder_model,open('encoder_dec6_1.p','wb'))
+pickle.dump(decoder_model,open('decoder_dev6_1.p','wb'))
 
 french_test, french_hypo = test_encoder_decoder(encoder_model, decoder_model, device,test_set)
 
-pickle.dump(french_test,open('french_test_epoch_5.p','wb'))
-pickle.dump(french_hypo,open('french_hypo_epoch_5.p','wb'))
+#pickle.dump(french_test,open('french_test_epoch_5.p','wb'))
+#pickle.dump(french_hypo,open('french_hypo_epoch_5.p','wb'))
 
 
 sentence1 = ''
 for j in range(len(french_test)):
     sentence1 += ' '.join(french_test[j][i] for i in range(len(french_test[j])))
     sentence1 = sentence1+'\n'
-text_file = open("french_test_epoch_5.txt", "w")
+text_file = open("french_test_dec6_1.txt", "w")
 text_file.write(sentence1)
 text_file.close()
 
@@ -314,27 +365,33 @@ sentence2 = ''
 for j in range(len(french_hypo)):
     sentence2 += ' '.join(french_hypo[j][i] for i in range(len(french_hypo[j])))
     sentence2 = sentence2+'\n'
-text_file = open("french_hypo_epoch_5.txt", "w")
+text_file = open("french_hypo_dec6_1.txt", "w")
 text_file.write(sentence2)
 text_file.close()
 
+bleu_score = compute_bleu("french_hypo_dec6_1.txt", "french_test_dec6_1.txt")
 
-lowercase = 1
-with open('french_hypo_epoch_5.txt', "r") as read_pred:
-    bleu_cmd = [multi_bleu_path]
-    if lowercase:
-        bleu_cmd += ["-lc"]
-    bleu_cmd += ['french_test_epoch_5.txt']
-    try:
-        bleu_out = subprocess.check_output(bleu_cmd, stdin=read_pred, stderr=subprocess.STDOUT)
-        bleu_out = bleu_out.decode("utf-8")
-        bleu_score = re.search(r"BLEU = (.+?),", bleu_out).group(1)
-        bleu_score = float(bleu_score)
-        logging.warning(str(bleu_score))
-        logging.warning(bleu_out)
-    except subprocess.CalledProcessError as error:
-        if error.output is not None:
-            logging.warning("multi-bleu.perl script returned non-zero exit code")
-            logging.warning(error.output)
-        bleu_score = np.float32(0.0)
+print(bleu_score)
+
+
+
+# lowercase = 1
+# with open('french_hypo_epoch_5.txt', "r") as read_pred:
+#     bleu_cmd = [multi_bleu_path]
+#     if lowercase:
+#         bleu_cmd += ["-lc"]
+#     bleu_cmd += ['french_test_epoch_5.txt']
+#     try:
+#         bleu_out = subprocess.check_output(bleu_cmd, stdin=read_pred, stderr=subprocess.STDOUT)
+#         bleu_out = bleu_out.decode("utf-8")
+#         bleu_score = re.search(r"BLEU = (.+?),", bleu_out).group(1)
+#         bleu_score = float(bleu_score)
+#         logging.warning(str(bleu_score))
+#         logging.warning(bleu_out)
+#     except subprocess.CalledProcessError as error:
+#         if error.output is not None:
+#             logging.warning("multi-bleu.perl script returned non-zero exit code")
+#             logging.warning(error.output)
+#         bleu_score = np.float32(0.0)
+
 
