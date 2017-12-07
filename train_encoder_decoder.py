@@ -62,14 +62,12 @@ def compute_bleu(hypothesis_file_name, test_filename_name):
 	        bleu_out = bleu_out.decode("utf-8")
 	        bleu_score = re.search(r"BLEU = (.+?),", bleu_out).group(1)
 	        bleu_score = float(bleu_score)
-	        logging.warning(str(bleu_score))
-	        logging.warning(bleu_out)
 	    except subprocess.CalledProcessError as error:
 	        if error.output is not None:
 	            logging.warning("multi-bleu.perl script returned non-zero exit code")
 	            logging.warning(error.output)
 	        bleu_score = np.float32(0.0)
-	return bleu_score
+	return bleu_score,bleu_out
 
 def train(train_iter, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion):#, teacher_forcing_ratio=1.0):
 	
@@ -111,7 +109,7 @@ def train(train_iter, encoder, decoder, encoder_optimizer, decoder_optimizer, cr
 		if b %500==499:
 			print(b,' batch complete')
 			print(loss.data[0]/trglength)
-			break
+			
 		if b==len(train_iter)-1:
 			break
 			
@@ -184,7 +182,7 @@ def evaluate(val_iter, encoder, decoder, criterion):
 	text_file.write(sentence2)
 	text_file.close()
 
-	val_bleu = compute_bleu("french_val_hyp.txt", "french_val_test.txt")
+	val_bleu = compute_bleu("french_val_hyp.txt", "french_val_test.txt")[0]
 	return total_loss/len(val_iter), val_bleu
 
 
@@ -213,7 +211,7 @@ def epoch_training(train_iter, val_iter, num_epoch = 100, learning_rate = 1e-4, 
     for epoch in range(num_epoch):
         tl = train(train_iter, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion)
         loss, val_bleu = evaluate(val_iter, encoder, decoder, criterion)
-        logging.warning('************Epoch: ' + str(epoch) + ' Training Loss: '+str(tl)+' Validation Loss: '+str(loss)+'*********')
+        logging.warning('******Epoch: ' + str(epoch) + ' Training Loss: '+str(tl)+' Validation Loss: '+str(loss)+' Validation Bleu: '+str(val_bleu)+'*********')
         #save the model with the lowest validation loss
         if base_bleu < val_bleu:
         	base_bleu = val_bleu
@@ -221,10 +219,10 @@ def epoch_training(train_iter, val_iter, num_epoch = 100, learning_rate = 1e-4, 
         	res_encoder = encoder
         	res_decoder = decoder
         	res_epoch = epoch
-        	logging.warning('Updated validation loss as ' + str(res_loss) + ' at '+str(res_epoch))
+        	logging.warning('Updated validation loss as ' + str(res_loss) + 'With validation Bleu as '+str(base_bleu)+' at epoch '+str(res_epoch))
 
-    print('Stop at Epoch: '+str(res_epoch)+", With Validation Loss: "+str(res_loss))
-    logging.warning('Stop at Epoch: '+str(res_epoch)+", With Validation Loss: "+str(res_loss))
+    print('Stop at Epoch: '+str(res_epoch)+", With Validation Loss: "+str(res_loss)+", Validation Bleu: "+str(base_bleu))
+    logging.warning('Stop at Epoch: '+str(res_epoch)+", With Validation Loss: "+str(res_loss)+", Validation Bleu: "+str(base_bleu))
     return res_loss, res_encoder, res_decoder, base_bleu
 
 #feed encoder_model, decoder_model, test_set, and device to test
@@ -369,9 +367,10 @@ text_file = open("french_hypo_dec6_1.txt", "w")
 text_file.write(sentence2)
 text_file.close()
 
-bleu_score = compute_bleu("french_hypo_dec6_1.txt", "french_test_dec6_1.txt")
+bleu_score,bleu_out = compute_bleu("french_hypo_dec6_1.txt", "french_test_dec6_1.txt")
 
-print(bleu_score)
+logging.warning(str(bleu_score))
+logging.warning(bleu_out)
 
 
 
