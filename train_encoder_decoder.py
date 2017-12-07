@@ -17,7 +17,7 @@ import numpy as np
 
 from torchtext import data
 from torchtext import datasets
-from model_nov23 import EncoderRNN, DecoderRNN
+from model import EncoderRNN, DecoderRNN
 import nltk
 
 multi_bleu_path, _ = urllib.request.urlretrieve(
