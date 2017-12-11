@@ -224,7 +224,7 @@ def epoch_training(train_iter, val_iter, num_epoch = 100, learning_rate = 1e-4, 
         	not_updated = 0
         	logging.warning('Updated validation loss as ' + str(res_loss) + 'With validation Bleu as '+str(base_bleu)+' at epoch '+str(res_epoch))
         else:
-                not_updated += 1
+			not_updated += 1
         if not_updated == patience:
                 break
     print('Stop at Epoch: '+str(res_epoch)+", With Validation Loss: "+str(res_loss)+", Validation Bleu: "+str(base_bleu))
