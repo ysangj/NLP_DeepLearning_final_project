@@ -240,7 +240,8 @@ def epoch_training(train_iter, val_iter, num_epoch = 100, learning_rate = 1e-4, 
     res_rm = None
     res_epoch = 0
     base_bleu = 0
-
+    not_updated = 0
+    
     for epoch in range(num_epoch):
         tl = rm_train(train_iter, encoder, recurrent_memory, encoder_optimizer, recurrent_memory_optimizer, criterion, hidden_size, memory_size )
         loss, val_bleu = evaluate(val_iter, encoder, recurrent_memory, hidden_size, memory_size, criterion)
