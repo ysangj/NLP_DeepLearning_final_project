@@ -14,13 +14,13 @@ from torchtext import data
 from torchtext import datasets
 
 class EncoderRNN(nn.Module):
-    def __init__(self, input_size, hidden_size, n_layers=1):
+    def __init__(self, input_size, hidden_size, n_layers=2):
         super(EncoderRNN, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.n_layers = n_layers
-        self.embedding = nn.Embedding(input_size, hidden_size).cuda() if torch.cuda.is_available() else nn.Embedding(input_size, hidden_size) 
-        self.gru = nn.GRU(hidden_size, hidden_size, n_layers).cuda() if torch.cuda.is_available() else nn.GRU(hidden_size, hidden_size, n_layers)
+        self.embedding = nn.Embedding(input_size, 100).cuda() if torch.cuda.is_available() else nn.Embedding(input_size, 100) 
+        self.gru = nn.GRU(100, hidden_size, n_layers).cuda() if torch.cuda.is_available() else nn.GRU(100, hidden_size, n_layers)
         #self.lstm = nn.LSTM(hidden_size, hidden_size, n_layers).cuda() if torch.cuda.is_available() else nn.LSTM(hidden_size, hidden_size, n_layers)
 
     def forward(self, source_sentence, hidden):
@@ -40,8 +40,8 @@ class DecoderRNN(nn.Module):
         super(DecoderRNN, self).__init__()
         self.n_layers = n_layers
         self.hidden_size = hidden_size
-        self.embedding = nn.Embedding(output_size, hidden_size).cuda() if torch.cuda.is_available() else nn.Embedding(output_size, hidden_size)
-        self.gru = nn.GRU(hidden_size*2, hidden_size).cuda() if torch.cuda.is_available() else nn.GRU(hidden_size*2, hidden_size)
+        self.embedding = nn.Embedding(output_size, 100).cuda() if torch.cuda.is_available() else nn.Embedding(output_size, 100)
+        self.gru = nn.GRU(hidden_size + 100, hidden_size).cuda() if torch.cuda.is_available() else nn.GRU(hidden_size+ 100, hidden_size)
         self.out = nn.Linear(hidden_size, output_size).cuda() if torch.cuda.is_available() else nn.Linear(hidden_size, output_size)
         self.softmax = nn.LogSoftmax().cuda() if torch.cuda.is_available() else nn.LogSoftmax()
         
@@ -69,8 +69,7 @@ class RecurrentMemory(nn.Module):
         super(RecurrentMemory, self).__init__()
         self.n_layers = n_layers
         self.hidden_size = hidden_size
-        self.embedding = nn.Embedding(output_size, hidden_size).cuda() if torch.cuda.is_available() else nn.Embedding(output_size, hidden_size) 
-        # self.lstm.weight_hh_l0.data.fill_(0)
+        self.embedding = nn.Embedding(output_size, 100).cuda() if torch.cuda.is_available() else nn.Embedding(output_size, 100)
         self.out = nn.Linear(hidden_size*2, output_size).cuda() if torch.cuda.is_available() else nn.Linear(hidden_size*2, output_size)
         self.softmax = nn.LogSoftmax().cuda() if torch.cuda.is_available() else nn.LogSoftmax()
         
@@ -78,13 +77,8 @@ class RecurrentMemory(nn.Module):
         self.m_embedding = nn.Embedding(output_size, hidden_size).cuda() if torch.cuda.is_available() else nn.Embedding(output_size, hidden_size)
         self.c_embedding = nn.Embedding(output_size, hidden_size).cuda() if torch.cuda.is_available() else nn.Embedding(output_size, hidden_size)
         self.mb_attn_linear = nn.Linear(memory_size, memory_size).cuda() if torch.cuda.is_available() else nn.Linear(memory_size, memory_size)
-
-        self.lstm = nn.LSTM(hidden_size*2, hidden_size,n_layers).cuda() if torch.cuda.is_available() else nn.LSTM(hidden_size*2, hidden_size, n_layers)
-        self.lstm_cell = nn.LSTMCell(hidden_size*2, hidden_size).cuda() if torch.cuda.is_available() else nn.LSTMCell(hidden_size*2, hidden_size)
-        
-        self.gru_cell = nn.GRUCell(hidden_size, hidden_size).cuda() if torch.cuda.is_available() else nn.GRUCell(hidden_size, hidden_size)
+        self.lstm = nn.LSTM(hidden_size + 100, hidden_size,n_layers).cuda() if torch.cuda.is_available() else nn.LSTM(hidden_size + 100, hidden_size, n_layers)
         self.gru = nn.GRU(hidden_size, hidden_size).cuda() if torch.cuda.is_available() else nn.GRU(hidden_size, hidden_size)
-
         ############################################################################## 
 
     def forward(self, input, rmn_hidden, cell,context, batch_size, memory_tensor, memory_size): #hidden should be renamed as context
@@ -93,7 +87,6 @@ class RecurrentMemory(nn.Module):
         output = F.relu(output)
         output =  torch.cat((output, context), 2)
         lstm_output, (lstm_hidden, lstm_cell) = self.lstm(output, (rmn_hidden, cell))
-
 
         ############## Memory Block ####################################################
         input_memory = self.m_embedding(memory_tensor) #M 
@@ -134,8 +127,6 @@ class RMR(nn.Module):
         self.rmr_lstm_cell = nn.LSTMCell(hidden_size, hidden_size).cuda() if torch.cuda.is_available() else nn.LSTMCell(hidden_size, hidden_size)
         ################
 
-
-
     def forward(self, input, rmn_hidden, cell,context, batch_size, memory_tensor, memory_size, rmr_hidden, rmr_cell): #hidden should be renamed as context
         output = self.embedding(input)
         context = context.view(self.n_layers,batch_size,self.hidden_size)
@@ -163,6 +154,7 @@ class RMR(nn.Module):
         mb_output = mb_output.unsqueeze(0)
         ####################################################################################
 
+        ######################### RMR ################################
         mb_output = mb_output.squeeze(0)
         rmr_hidden = rmr_hidden.squeeze(0)
         rmr_cell = rmr_cell.squeeze(0)
@@ -174,10 +166,5 @@ class RMR(nn.Module):
 
         rmr_output = torch.cat((rmr_hidden,context),2)
         rmr_output = self.softmax(self.out(rmr_output[0]))
+        ########################################################################
         return output, lstm_hidden, cell, rmr_output, rmr_hidden, rmr_cell
-
-
-
-
-
-
