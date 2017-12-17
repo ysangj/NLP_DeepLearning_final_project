@@ -204,8 +204,6 @@ def epoch_training(train_iter, val_iter, num_epoch = 100, learning_rate = 1e-4, 
 
     # define loss criterion
     criterion = nn.NLLLoss( ignore_index = PAD_token)
-    #ignore_index=-100
-    # define optimizers
     encoder_optimizer = optim.Adam(encoder.parameters(), lr=learning_rate)
     decoder_optimizer = optim.Adam(decoder.parameters(), lr=learning_rate)
     
@@ -350,8 +348,6 @@ while cnt < 1:
         gc.collect()
         
 logging.warning('Optimized Parameters are '+str(optimized_parameters))
-
-
 
 de_test, de_hypo = test_encoder_decoder(encoder_model, decoder_model, device,test_set)
 
