@@ -14,33 +14,45 @@ import logging
 import pickle
 import collections
 import numpy as np
-
+import sys
 from torchtext import data
 from torchtext import datasets
-from model_nov23 import EncoderRNN, DecoderRNN
+from model import EncoderRNN, DecoderRNN
 import nltk
+import spacy
+
+spacy_de = spacy.load('de')
+spacy_en = spacy.load('en')
+url = re.compile('(<url>.*</url>)')
+
+def tokenize_de(text):
+    return [tok.text for tok in spacy_de.tokenizer(url.sub('@URL@', text))]
+
+def tokenize_en(text):
+    return [tok.text for tok in spacy_en.tokenizer(url.sub('@URL@', text))]
 
 multi_bleu_path, _ = urllib.request.urlretrieve(
         "https://raw.githubusercontent.com/moses-smt/mosesdecoder/"
         "master/scripts/generic/multi-bleu.perl")
 os.chmod(multi_bleu_path, 0o755)
 
-file_name = 'dec8_IWSLT_1_en_de'
+file_name = 'dec15_rnn_iwslt_3_en_de'
 logging.basicConfig(filename=file_name+'.log',level=logging.WARNING)
 logging.warning('Packages Imported')
 
-DE = data.Field(init_token='<sos>', eos_token='<eos>')
-EN = data.Field(init_token='<sos>', eos_token='<eos>')
+DE = data.Field(tokenize=tokenize_de, init_token='<sos>', eos_token='<eos>',fix_length = 13)
+EN = data.Field(tokenize=tokenize_en, init_token='<sos>', eos_token='<eos>',fix_length = 13)
 
 SOS_token = 2
 EOS_token = 3
+PAD_token = 1
 
 train_set, val_set, test_set = datasets.IWSLT.splits(exts=('.en', '.de'), fields=(EN, DE))
 #'<unk>': 0, '<pad>': 1, '<sos>': 2, '<eos>': 3
 
 device = 0 if(torch.cuda.is_available()) else -1
 logging.warning('Data Loaded')
-
+logging.warning('Embedding Size: 128, Fix Length: 13')
 
 def is_eos(topi, batch_size):
 	eos_counter = 0
@@ -85,10 +97,9 @@ def train(train_iter, encoder, decoder, encoder_optimizer, decoder_optimizer, cr
 		# encode
 		encoder_hidden = encoder.init_hidden(train_iter.batch_size)
 		encoder_out, context = encoder(src, encoder_hidden)
-
+		context = context[-1].unsqueeze(0)
 		# decode
 		decoder_input = Variable(torch.LongTensor([[SOS_token]*train_iter.batch_size]))
-
 		if torch.cuda.is_available():
 			decoder_input = Variable(torch.cuda.LongTensor([[SOS_token]*train_iter.batch_size]))
 
@@ -111,7 +122,6 @@ def train(train_iter, encoder, decoder, encoder_optimizer, decoder_optimizer, cr
 		if b %500==499:
 			print(b,' batch complete')
 			print(loss.data[0]/trglength)
-		#	break
 		if b==len(train_iter)-1:
 			break
 			
@@ -130,7 +140,7 @@ def evaluate(val_iter, encoder, decoder, criterion):
 
 		encoder_hidden = encoder.init_hidden(val_iter.batch_size)
 		encoder_out, context = encoder(src, encoder_hidden)
-
+		context = context[-1].unsqueeze(0)
 		# decode
 		decoder_input = Variable(torch.LongTensor([[SOS_token]*val_iter.batch_size]))
 		decoder_hidden = context
@@ -156,7 +166,6 @@ def evaluate(val_iter, encoder, decoder, criterion):
 		de_test.append(ref)
 		de_hypo.append(hyp)
 		
-		
 		if b% 500 == 0:
 			print("[ENGLISH]: ", " ".join([EN.vocab.itos[i] for i in src.data[:,0]]))
 			print("[DE]: ", " ".join([DE.vocab.itos[i] for i in translated]))
@@ -167,8 +176,8 @@ def evaluate(val_iter, encoder, decoder, criterion):
 			print("[DE]: ", " ".join([DE.vocab.itos[i] for i in translated]))
 			print("[DE Original]: ", " ".join([DE.vocab.itos[i] for i in trg.data[:,0]]))
 			break
-	sentence1 = ''
 
+	sentence1 = ''
 	for j in range(len(de_test)):
 	    sentence1 += ' '.join(de_test[j][i] for i in range(len(de_test[j])))
 	    sentence1 = sentence1+'\n'
@@ -178,7 +187,7 @@ def evaluate(val_iter, encoder, decoder, criterion):
 
 	sentence2 = ''
 	for j in range(len(de_hypo)):
-	    sentence2 += ' '.join(de_hypo[j][i] for i in range(len(de_hypo[j])))
+	    sentence2 += ' '.join(french_hypo[j][i] for i in range(len(de_hypo[j])))
 	    sentence2 = sentence2+'\n'
 	text_file = open("de_val_hyp_"+file_name+".txt", "w")
 	text_file.write(sentence2)
@@ -188,15 +197,14 @@ def evaluate(val_iter, encoder, decoder, criterion):
 	return total_loss/len(val_iter), val_bleu
 
 
-def epoch_training(train_iter, val_iter, num_epoch = 100, learning_rate = 1e-4, hidden_size = 100, patience = 2,epsilon = 1e-4):
-
+def epoch_training(train_iter, val_iter, num_epoch = 100, learning_rate = 1e-4, hidden_size = 100,  early_stop = False, patience = 2,epsilon = 1e-4):
     # define model
     encoder = EncoderRNN(input_size = len(EN.vocab), hidden_size = hidden_size)
     decoder = DecoderRNN(hidden_size=hidden_size, output_size = len(DE.vocab))
 
     # define loss criterion
-    criterion = nn.NLLLoss()
-
+    criterion = nn.NLLLoss( ignore_index = PAD_token)
+    #ignore_index=-100
     # define optimizers
     encoder_optimizer = optim.Adam(encoder.parameters(), lr=learning_rate)
     decoder_optimizer = optim.Adam(decoder.parameters(), lr=learning_rate)
@@ -224,9 +232,9 @@ def epoch_training(train_iter, val_iter, num_epoch = 100, learning_rate = 1e-4, 
         	not_updated = 0
         	logging.warning('Updated validation loss as ' + str(res_loss) + 'With validation Bleu as '+str(base_bleu)+' at epoch '+str(res_epoch))
         else:
-			not_updated += 1
+        	not_updated += 1
         if not_updated == patience:
-                break
+        	break
     print('Stop at Epoch: '+str(res_epoch)+", With Validation Loss: "+str(res_loss)+", Validation Bleu: "+str(base_bleu))
     logging.warning('Stop at Epoch: '+str(res_epoch)+", With Validation Loss: "+str(res_loss)+", Validation Bleu: "+str(base_bleu))
     return res_loss, res_encoder, res_decoder, base_bleu
@@ -253,7 +261,8 @@ def test_encoder_decoder(encoder, decoder, device,test_set):
 
 		encoder_hidden = encoder.init_hidden(test_iter.batch_size)
 		encoder_out, context = encoder(src, encoder_hidden)
-
+		context = context[-1].unsqueeze(0)
+		
 		# decode
 		decoder_input = Variable(torch.LongTensor([[SOS_token]*test_iter.batch_size]))
 		decoder_hidden = context
@@ -269,9 +278,6 @@ def test_encoder_decoder(encoder, decoder, device,test_set):
 			decoder_input  = Variable(topi.view(1, len(topi)) )
 			decoder_input = decoder_input.cuda() if torch.cuda.is_available() else decoder_input
 			
-			# if is_eos(topi, test_iter.batch_size):
-			# 	break
-
 			if topi[0][0] == EOS_token:
 				break
 
@@ -286,7 +292,6 @@ def test_encoder_decoder(encoder, decoder, device,test_set):
 		avg_bleu3 += nltk.translate.bleu_score.sentence_bleu([de_reference], de_hypothesis,smoothing_function=nltk.translate.bleu_score.SmoothingFunction().method3)
 		avg_bleu4 += nltk.translate.bleu_score.sentence_bleu([de_reference], de_hypothesis,smoothing_function=nltk.translate.bleu_score.SmoothingFunction().method4)
 		avg_bleu5 += nltk.translate.bleu_score.sentence_bleu([de_reference], de_hypothesis,smoothing_function=nltk.translate.bleu_score.SmoothingFunction().method5)
-		#avg_bleu6 += nltk.translate.bleu_score.sentence_bleu([french_reference], french_hypothesis,smoothing_function=nltk.translate.bleu_score.SmoothingFunction().method6)
 		avg_bleu7 += nltk.translate.bleu_score.sentence_bleu([de_reference], de_hypothesis,smoothing_function=nltk.translate.bleu_score.SmoothingFunction().method7)        
 		if b==len(test_iter)-1:
 			break 
@@ -295,24 +300,18 @@ def test_encoder_decoder(encoder, decoder, device,test_set):
 	logging.warning(avg_bleu3/len(test_iter))
 	logging.warning(avg_bleu4/len(test_iter))
 	logging.warning(avg_bleu5/len(test_iter))
-	#logging.warning(avg_bleu6/len(test_iter))
 	logging.warning(avg_bleu7/len(test_iter))
 	return de_test, de_hypo
 
 
-
-
-
-
-
-########################################################## Main Procedure ##########################################
+###################### Main Procedure ##########################################
 
 pars = []
 for num_epoch in [50]:
-    for learning_rate in [3e-4]:#,0.05]:
-        for hidden_size in [128]:
+    for learning_rate in [1e-4]:#,0.05]:
+        for hidden_size in [1000]:
             for batch_size in [12]:
-                for voc_size in [10000]:
+                for voc_size in [50000]:
                     pars.append({
                         'num_epoch': num_epoch,
                         'learning_rate': learning_rate,
@@ -336,7 +335,7 @@ while cnt < 1:
     EN.build_vocab(train_set.src, max_size=par['voc_size'])
     DE.build_vocab(train_set.trg, max_size=par['voc_size'])
     train_iter, val_iter = data.BucketIterator.splits((train_set, val_set), sort_key = lambda ex: data.interleave_keys(len(ex.src), len(ex.trg)), batch_sizes=(par['batch_size'], 1), device = device)
-    loss, encoder, decoder, val_bleu = epoch_training(train_iter, val_iter, num_epoch = par['num_epoch'], learning_rate = par['learning_rate'], hidden_size = par['hidden_size'], patience = 15, epsilon = 1e-4)
+    loss, encoder, decoder, val_bleu = epoch_training(train_iter, val_iter, num_epoch = par['num_epoch'], learning_rate = par['learning_rate'], hidden_size = par['hidden_size'], early_stop = False, patience = 5, epsilon = 1e-4)
     #res_loss, res_encoder, res_decoder, loss, base_bleu
 
     logging.warning('\nValidation Bleu: '+str(val_bleu))
@@ -351,8 +350,8 @@ while cnt < 1:
         gc.collect()
         
 logging.warning('Optimized Parameters are '+str(optimized_parameters))
-pickle.dump(encoder_model,open('encoder_'+file_name+'.p','wb'))
-pickle.dump(decoder_model,open('decoder_'+file_name+'.p','wb'))
+
+
 
 de_test, de_hypo = test_encoder_decoder(encoder_model, decoder_model, device,test_set)
 
@@ -376,3 +375,6 @@ bleu_score,bleu_out = compute_bleu("de_hypo_"+file_name+".txt", "de_test_"+file_
 
 logging.warning(str(bleu_score))
 logging.warning(bleu_out)
+
+pickle.dump(encoder_model,open('/scratch/sjy269/encoder_'+file_name+'.p','wb'))
+pickle.dump(decoder_model,open('/scratch/sjy269/decoder_'+file_name+'.p','wb'))
