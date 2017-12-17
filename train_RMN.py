@@ -162,7 +162,8 @@ def evaluate(val_iter, encoder, recurrent_memory, hidden_size, memory_size, crit
 		val_batch = batch
 		src = val_batch.src
 		trg = val_batch.trg
-				# encode
+		
+		# encode
 		encoder_hidden = encoder.init_hidden(val_iter.batch_size)
 		encoder_out, context = encoder(src, encoder_hidden)
 		context = context[-1].unsqueeze(0)
