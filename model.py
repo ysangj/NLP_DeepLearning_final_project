@@ -168,3 +168,9 @@ class RMR(nn.Module):
         rmr_output = self.softmax(self.out(rmr_output[0]))
         ########################################################################
         return output, lstm_hidden, cell, rmr_output, rmr_hidden, rmr_cell
+
+
+
+
+
+
